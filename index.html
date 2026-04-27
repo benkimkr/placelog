@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#0a0a0f">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>PLACELOG</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <header class="app-header">
+    <span class="logo">PLACELOG</span>
+    <span class="logo-sub">나만의 장소 기록</span>
+  </header>
+
+  <main class="feed" id="feed">
+    <div class="empty-state" id="empty-state">
+      <div class="empty-pin">📍</div>
+      <h2>PLACELOG</h2>
+      <p>당신만의 장소 기록을 시작하세요</p>
+      <button class="btn-primary" onclick="openCreateModal()">첫 번째 장소 추가하기</button>
+    </div>
+  </main>
+
+  <!-- ── Create Modal ── -->
+  <div class="modal-overlay hidden" id="create-overlay">
+    <div class="modal" id="create-modal">
+
+      <div class="modal-header">
+        <button class="btn-back" onclick="goStepBack()">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M20 11H7.83l4.88-4.88A1 1 0 0 0 11.3 4.7L3.71 12.3a1 1 0 0 0 0 1.41L11.3 21.3a1 1 0 0 0 1.41-1.41L7.83 15H20a1 1 0 0 0 0-2z"/>
+          </svg>
+        </button>
+        <div class="step-dots">
+          <span class="dot active" id="dot-1"></span>
+          <span class="dot" id="dot-2"></span>
+          <span class="dot" id="dot-3"></span>
+        </div>
+        <button class="btn-close-x" onclick="closeCreateModal()">✕</button>
+      </div>
+
+      <!-- Step 1: 장소 검색 -->
+      <div class="step" id="step-1">
+        <h3 class="step-title">어디를 기록할까요?</h3>
+        <div class="search-row">
+          <input type="text" class="input-field" id="place-input"
+                 placeholder="장소 이름 검색..." autocomplete="off" autocorrect="off" />
+          <button class="btn-search" id="btn-search" onclick="searchPlace()">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+            </svg>
+          </button>
+        </div>
+        <div class="map-frame" id="map-frame">
+          <div class="map-placeholder" id="map-placeholder">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="var(--text-muted)">
+              <path d="M20.5 3l-.16.03L15 5.1 9 3 3.36 4.9c-.21.07-.36.25-.36.48V20.5c0 .28.22.5.5.5l.16-.03L9 18.9l6 2.1 5.64-1.9c.21-.07.36-.25.36-.48V3.5c0-.28-.22-.5-.5-.5zM15 19l-6-2.11V5l6 2.11V19z"/>
+            </svg>
+            <p>장소를 검색하면 지도가 표시됩니다</p>
+          </div>
+          <iframe id="map-iframe" src="" frameborder="0"
+                  style="display:none;border:0;width:100%;height:100%" loading="lazy"></iframe>
+        </div>
+        <p class="place-name-hint" id="place-name-hint"></p>
+        <button class="btn-primary w-full" id="btn-next-1" onclick="goStep(2)" disabled>다음</button>
+      </div>
+
+      <!-- Step 2: 미디어 -->
+      <div class="step hidden" id="step-2">
+        <h3 class="step-title">미디어 추가 <span class="optional">(선택)</span></h3>
+        <div class="tabs">
+          <button class="tab active" data-tab="youtube" onclick="switchTab('youtube')">YouTube</button>
+          <button class="tab" data-tab="instagram" onclick="switchTab('instagram')">Instagram</button>
+          <button class="tab" data-tab="upload" onclick="switchTab('upload')">동영상</button>
+        </div>
+
+        <div class="tab-panel" id="panel-youtube">
+          <input type="text" class="input-field" id="youtube-url"
+                 placeholder="YouTube URL 붙여넣기..." autocomplete="off" />
+          <div class="media-preview" id="yt-preview"></div>
+        </div>
+
+        <div class="tab-panel hidden" id="panel-instagram">
+          <input type="text" class="input-field" id="instagram-url"
+                 placeholder="Instagram URL 붙여넣기..." autocomplete="off" />
+          <div class="media-preview" id="ig-preview"></div>
+        </div>
+
+        <div class="tab-panel hidden" id="panel-upload">
+          <div class="upload-zone" id="upload-zone">
+            <input type="file" id="file-input" accept="video/*" capture="environment" hidden />
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="var(--text-muted)">
+              <path d="M17 10.5V7a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3.5l4 4v-11l-4 4z"/>
+            </svg>
+            <p>클릭하거나 드래그해서 동영상 업로드</p>
+            <span class="hint">MP4, MOV, WebM 등 · 200MB 이하</span>
+          </div>
+          <div class="media-preview" id="upload-preview"></div>
+        </div>
+
+        <div class="btn-row">
+          <button class="btn-secondary" onclick="goStep(1)">이전</button>
+          <button class="btn-primary" onclick="goStep(3)">다음</button>
+        </div>
+      </div>
+
+      <!-- Step 3: 캡션 -->
+      <div class="step hidden" id="step-3">
+        <h3 class="step-title">기록을 완성하세요</h3>
+        <div class="mini-place-card" id="mini-place-card">
+          <div class="mini-map" id="mini-map"></div>
+          <div class="mini-info">
+            <p class="mini-name" id="mini-name"></p>
+            <p class="mini-full" id="mini-full"></p>
+          </div>
+        </div>
+        <textarea class="input-field textarea" id="caption"
+                  placeholder="이 장소에 대한 기억을 남겨보세요..."></textarea>
+        <input type="text" class="input-field" id="tags-input"
+               placeholder="#태그 #여행 #카페 (스페이스나 쉼표로 구분)" />
+        <div class="btn-row">
+          <button class="btn-secondary" onclick="goStep(2)">이전</button>
+          <button class="btn-primary" id="btn-save" onclick="saveCard()">저장하기 📍</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast hidden" id="toast"></div>
+
+  <!-- FAB -->
+  <button class="btn-fab" onclick="openCreateModal()" aria-label="장소 추가">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+    </svg>
+  </button>
+
+  <script src="script.js"></script>
+</body>
+</html>
