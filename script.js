@@ -7,7 +7,7 @@ const CATS = {
   landmark: { label: '관광지', emoji: '🏛️', color: '#42a5f5' },
   shopping: { label: '쇼핑',   emoji: '🛍️', color: '#ec407a' },
   nature:   { label: '자연',   emoji: '🌿', color: '#66bb6a' },
-  other:    { label: '기타',   emoji: '📍', color: '#8b5cf6' },
+  other:    { label: '기타',   emoji: '📍', color: '#0057ff' },
 };
 
 // ── IndexedDB (동영상 blob) ───────────────────────────────────────────────────
@@ -74,8 +74,8 @@ function initMap() {
     tap: false,
   }).setView([37.5665, 126.9780], 12);
 
-  // CartoDB Dark Matter 타일 (API 키 없음)
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  // CartoDB Voyager 타일 (API 키 없음)
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
     attribution: '© <a href="https://www.openstreetmap.org/copyright">OSM</a> © <a href="https://carto.com">CARTO</a>',
     subdomains: 'abcd',
     maxZoom: 19,
