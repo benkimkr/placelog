@@ -18,7 +18,10 @@
     <div class="logo-pill">
       <span class="logo">PLACELOG</span>
     </div>
-    <div class="pin-badge" id="pin-badge">0 곳</div>
+    <div class="hud-right">
+      <div class="pin-badge" id="pin-badge">0 곳</div>
+      <button class="user-avatar hidden" id="user-avatar" onclick="logout()" title="로그아웃"></button>
+    </div>
   </header>
 
   <!-- 검색바 -->
@@ -180,8 +183,25 @@
   <!-- 토스트 -->
   <div class="toast hidden" id="toast"></div>
 
+  <!-- 로그인 화면 -->
+  <div class="login-screen hidden" id="login-screen">
+    <div class="login-card">
+      <div class="login-brand">
+        <span class="login-logo">PLACELOG</span>
+        <p class="login-sub">나만의 장소를 기록하세요</p>
+      </div>
+      <button class="btn-kakao" id="btn-kakao" onclick="loginWithKakao()">
+        <svg width="20" height="18" viewBox="0 0 20 18" fill="currentColor">
+          <path d="M10 0C4.48 0 0 3.36 0 7.5c0 2.65 1.68 4.98 4.24 6.43L3.26 17.5l4.5-2.3c.73.14 1.47.21 2.24.21 5.52 0 10-3.36 10-7.5S15.52 0 10 0z"/>
+        </svg>
+        카카오로 시작하기
+      </button>
+    </div>
+  </div>
+
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+  <script src="https://t1.kakaocdn.net/kakao_js_sdk/2.7.2/kakao.min.js"></script>
   <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=a0a94073377626348a12a0473d152c0c&libraries=services"></script>
   <script src="script.js"></script>
 </body>

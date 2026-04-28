@@ -62,6 +62,10 @@ let addTab        = 'yt';
 let selCat        = 'other';
 let searchResults = [];
 
+// 인증
+let currentUser  = null;
+let placesUnsub  = null;
+
 // 드래그 시트
 let sheetDrag  = false;
 let sheetStartY = 0;
@@ -74,15 +78,96 @@ let feedRegion = 'all';
 function initFirestore() {
   firebase.initializeApp(firebaseConfig);
   db = firebase.firestore();
-  db.collection('places').orderBy('createdAt', 'asc').onSnapshot(
-    snapshot => {
-      cards = snapshot.docs.map(d => d.data());
-      if (map) refreshPins();
-      updateBadge();
-      if (currentTab === 'feed') renderFeed();
+}
+
+function subscribeToPlaces() {
+  if (placesUnsub) placesUnsub();
+  placesUnsub = db.collection('places')
+    .where('userId', '==', currentUser.id)
+    .onSnapshot(
+      snapshot => {
+        cards = snapshot.docs.map(d => d.data())
+          .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+        if (map) refreshPins();
+        updateBadge();
+        if (currentTab === 'feed') renderFeed();
+      },
+      err => toast('데이터 로드 오류: ' + err.message)
+    );
+}
+
+// ── 카카오 인증 ───────────────────────────────────────────────────────────────
+function initAuth() {
+  Kakao.init('a0a94073377626348a12a0473d152c0c');
+  const stored = localStorage.getItem('placelog_user');
+  if (stored) {
+    try { currentUser = JSON.parse(stored); onAuthReady(); return; } catch {}
+  }
+  showLoginScreen();
+}
+
+function showLoginScreen() {
+  document.getElementById('login-screen').classList.remove('hidden');
+}
+function hideLoginScreen() {
+  document.getElementById('login-screen').classList.add('hidden');
+}
+
+function loginWithKakao() {
+  const btn = document.getElementById('btn-kakao');
+  btn.disabled = true;
+  Kakao.Auth.login({
+    success() {
+      Kakao.API.request({
+        url: '/v2/user/me',
+        success(res) {
+          currentUser = {
+            id:           String(res.id),
+            nickname:     res.kakao_account?.profile?.nickname || '사용자',
+            profileImage: res.kakao_account?.profile?.thumbnail_image_url || null,
+          };
+          localStorage.setItem('placelog_user', JSON.stringify(currentUser));
+          onAuthReady();
+        },
+        fail() { btn.disabled = false; toast('사용자 정보를 가져올 수 없어요'); },
+      });
     },
-    err => toast('데이터 로드 오류: ' + err.message)
-  );
+    fail(e) {
+      btn.disabled = false;
+      if (e.error !== 'access_denied') toast('로그인에 실패했어요');
+    },
+  });
+}
+
+function onAuthReady() {
+  hideLoginScreen();
+  updateUserUI();
+  subscribeToPlaces();
+}
+
+function updateUserUI() {
+  const el = document.getElementById('user-avatar');
+  if (!el || !currentUser) return;
+  el.classList.remove('hidden');
+  if (currentUser.profileImage) {
+    el.innerHTML = `<img src="${currentUser.profileImage}" alt="">`;
+  } else {
+    el.textContent = (currentUser.nickname[0] || '?').toUpperCase();
+  }
+  el.title = `${currentUser.nickname} · 로그아웃`;
+}
+
+function logout() {
+  if (!confirm('로그아웃 할까요?')) return;
+  localStorage.removeItem('placelog_user');
+  currentUser = null;
+  if (placesUnsub) { placesUnsub(); placesUnsub = null; }
+  cards = [];
+  Object.keys(markers).forEach(id => removePin(id));
+  updateBadge();
+  const el = document.getElementById('user-avatar');
+  if (el) { el.classList.add('hidden'); el.innerHTML = ''; }
+  showLoginScreen();
 }
 
 // ── 부트스트랩 ────────────────────────────────────────────────────────────────
@@ -92,8 +177,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   initMap();
   buildCatPills();
   setupListeners();
-  updateBadge();
   document.getElementById('add-date').value = today();
+  initAuth();
 });
 
 // ── 지도 초기화 ───────────────────────────────────────────────────────────────
@@ -488,16 +573,20 @@ async function saveCard() {
   const card = {
     id,
     name,
-    address:   tempAddr,
-    region:    extractRegion(tempAddr),
-    category:  selCat,
-    lat:       tempLatLng.getLat(),
-    lon:       tempLatLng.getLng(),
+    address:      tempAddr,
+    region:       extractRegion(tempAddr),
+    category:     selCat,
+    lat:          tempLatLng.getLat(),
+    lon:          tempLatLng.getLng(),
     mediaType,
     mediaId,
-    date:      document.getElementById('add-date').value,
-    memo:      document.getElementById('add-memo').value.trim(),
-    createdAt: new Date().toISOString(),
+    date:         document.getElementById('add-date').value,
+    memo:         document.getElementById('add-memo').value.trim(),
+    createdAt:    new Date().toISOString(),
+    userId:       currentUser.id,
+    userNickname: currentUser.nickname,
+    sharedWith:   [],          // 초대 기능용: 공유 대상 userId 배열
+    visibility:   'private',   // 'private' | 'shared' | 'public'
   };
 
   if (mediaType === 'video' && pendingFile) {
