@@ -1,5 +1,16 @@
 'use strict';
 
+// ── Firebase 설정 ─────────────────────────────────────────────────────────────
+const firebaseConfig = {
+  apiKey:            'AIzaSyBcTMKjYDFOZ0MK7dvCJEkj-4aZzRub1L0',
+  authDomain:        'placelog-75bbe.firebaseapp.com',
+  projectId:         'placelog-75bbe',
+  storageBucket:     'placelog-75bbe.firebasestorage.app',
+  messagingSenderId: '715846954889',
+  appId:             '1:715846954889:web:3f10bbac1e17bf66933b58',
+};
+let db;
+
 // ── 카테고리 ──────────────────────────────────────────────────────────────────
 const CATS = {
   food:     { label: '음식점', emoji: '🍽️', color: '#ff6b6b' },
@@ -59,12 +70,26 @@ let sheetStartY = 0;
 let currentTab = 'map';
 let feedRegion = 'all';
 
+// ── Firestore 초기화 ──────────────────────────────────────────────────────────
+function initFirestore() {
+  firebase.initializeApp(firebaseConfig);
+  db = firebase.firestore();
+  db.collection('places').orderBy('createdAt', 'asc').onSnapshot(
+    snapshot => {
+      cards = snapshot.docs.map(d => d.data());
+      if (map) refreshPins();
+      updateBadge();
+      if (currentTab === 'feed') renderFeed();
+    },
+    err => toast('데이터 로드 오류: ' + err.message)
+  );
+}
+
 // ── 부트스트랩 ────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
   await videoDB.open().catch(() => {});
-  cards = loadCards();
+  initFirestore();
   initMap();
-  renderAllPins();
   buildCatPills();
   setupListeners();
   updateBadge();
@@ -118,6 +143,19 @@ function makeTempContent() {
 
 // ── 핀 렌더링 ─────────────────────────────────────────────────────────────────
 function renderAllPins() { cards.forEach(addPin); }
+
+// onSnapshot 갱신 시 핀 동기화 (추가/삭제만 처리해 깜빡임 방지)
+function refreshPins() {
+  Object.keys(markers).forEach(id => {
+    if (!cards.find(c => c.id === id)) {
+      removePin(id);
+      if (activeId === id) closeSheet();
+    }
+  });
+  cards.forEach(card => {
+    if (!markers[card.id]) addPin(card);
+  });
+}
 
 function addPin(card) {
   const content = makeOverlayContent(card.category, false, card.id);
@@ -466,14 +504,17 @@ async function saveCard() {
     await videoDB.save(id, pendingFile).catch(() => {});
   }
 
-  cards.push(card);
-  persistCards();
-  addPin(card);
-  updateBadge();
-  clearTempPin();
-  cancelAddMode();
-  closeSheet();
-  toast(`${name} 저장됐어요 📍`);
+  try {
+    await db.collection('places').doc(card.id).set(card);
+    clearTempPin();
+    cancelAddMode();
+    closeSheet();
+    toast(`${name} 저장됐어요 📍`);
+  } catch (e) {
+    btn.disabled = false;
+    btn.innerHTML = '저장하기 📍';
+    toast('저장에 실패했어요. 다시 시도해주세요');
+  }
 }
 
 // ── 삭제 ─────────────────────────────────────────────────────────────────────
@@ -483,14 +524,15 @@ async function deleteActive() {
   if (!card) return;
   if (!confirm(`"${card.name}" 을(를) 삭제할까요?`)) return;
 
-  if (card.mediaType === 'video') await videoDB.remove(activeId).catch(() => {});
-  removePin(activeId);
-  cards = cards.filter(c => c.id !== activeId);
-  persistCards();
-  updateBadge();
+  const idToDelete = activeId;
+  if (card.mediaType === 'video') await videoDB.remove(idToDelete).catch(() => {});
   closeSheet();
-  toast('삭제됐어요');
-  if (currentTab === 'feed') renderFeed();
+  try {
+    await db.collection('places').doc(idToDelete).delete();
+    toast('삭제됐어요');
+  } catch (e) {
+    toast('삭제에 실패했어요');
+  }
 }
 
 // ── 공유 ─────────────────────────────────────────────────────────────────────
@@ -838,15 +880,6 @@ function feedCard(card) {
 function openFromFeed(id) {
   switchTab('map');
   setTimeout(() => openViewSheet(id), 120);
-}
-
-// ── localStorage ─────────────────────────────────────────────────────────────
-function loadCards() {
-  try { return JSON.parse(localStorage.getItem('placelog') || '[]'); }
-  catch { return []; }
-}
-function persistCards() {
-  localStorage.setItem('placelog', JSON.stringify(cards));
 }
 
 function updateBadge() {
