@@ -139,6 +139,8 @@ function loginWithKakao() {
   const btn = document.getElementById('btn-kakao');
   if (btn.classList.contains('loading')) return;
   btn.classList.add('loading');
+  const sub = document.querySelector('.login-sub');
+  if (sub) sub.textContent = '나만의 장소를 기록하세요';
   location.href =
     'https://kauth.kakao.com/oauth/authorize' +
     `?client_id=${KAKAO_REST_KEY}` +
@@ -148,27 +150,31 @@ function loginWithKakao() {
 
 async function handleKakaoCallback(code) {
   const btn = document.getElementById('btn-kakao');
-  try {
-    // 인가 코드 → 액세스 토큰
-    const tokenRes = await fetch('https://kauth.kakao.com/oauth/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=utf-8' },
-      body: new URLSearchParams({
-        grant_type:   'authorization_code',
-        client_id:    KAKAO_REST_KEY,
-        redirect_uri: KAKAO_REDIRECT_URI,
-        code,
-      }),
-    });
-    const token = await tokenRes.json();
-    if (token.error) throw new Error(token.error_description || token.error);
+  const sub = document.querySelector('.login-sub');
 
-    // 액세스 토큰 → 사용자 정보
+  const setSubError = msg => { if (sub) sub.textContent = msg; };
+
+  try {
+    // ① 인가 코드 → 액세스 토큰
+    const tokenRes = await fetch('https://kauth.kakao.com/oauth/token', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body:    'grant_type=authorization_code'
+             + `&client_id=${KAKAO_REST_KEY}`
+             + `&redirect_uri=${encodeURIComponent(KAKAO_REDIRECT_URI)}`
+             + `&code=${encodeURIComponent(code)}`,
+    });
+
+    const token = await tokenRes.json();
+    if (token.error) throw new Error(`토큰 오류: ${token.error_description || token.error}`);
+    if (!token.access_token) throw new Error('액세스 토큰을 받지 못했어요');
+
+    // ② 액세스 토큰 → 사용자 정보
     const userRes = await fetch('https://kapi.kakao.com/v2/user/me', {
       headers: { Authorization: `Bearer ${token.access_token}` },
     });
     const userData = await userRes.json();
-    if (userData.code) throw new Error(userData.msg || '사용자 정보 조회 실패');
+    if (userData.code < 0) throw new Error(`사용자 조회 실패 (${userData.code}): ${userData.msg}`);
 
     currentUser = {
       id:           String(userData.id),
@@ -183,7 +189,8 @@ async function handleKakaoCallback(code) {
     console.error('[Kakao callback]', e);
     btn.classList.remove('loading');
     showLoginScreen();
-    toast('로그인에 실패했어요. 다시 시도해주세요');
+    // 토스트는 사라지므로 로그인 카드에 오류를 직접 표시
+    setSubError('⚠️ ' + e.message);
   }
 }
 
