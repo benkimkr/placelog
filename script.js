@@ -67,7 +67,13 @@ let searchResults = [];
 
 // 인증
 let currentUser  = null;
-let placesUnsub  = null;
+
+// 컬렉션 / 다중 구독
+let myCollections      = [];
+let collectionsUnsub   = null;
+let placesUnsubList    = [];
+let cardBuckets        = new Map();  // 'personal' | collectionId → cards[]
+let pendingInviteCol   = null;
 
 // 드래그 시트
 let sheetDrag  = false;
@@ -83,25 +89,66 @@ function initFirestore() {
   db = firebase.firestore();
 }
 
-function subscribeToPlaces() {
-  if (placesUnsub) placesUnsub();
-  placesUnsub = db.collection('places')
+function setCardBucket(key, newCards) {
+  cardBuckets.set(key, newCards);
+  const merged = new Map();
+  cardBuckets.forEach(bucket => bucket.forEach(c => merged.set(c.id, c)));
+  cards = [...merged.values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  if (map) refreshPins();
+  updateBadge();
+  if (currentTab === 'feed') renderFeed();
+  if (currentTab === 'collections') renderCollectionsView();
+}
+
+function refreshPlacesSubscriptions() {
+  placesUnsubList.forEach(u => u());
+  placesUnsubList = [];
+  cardBuckets.clear();
+
+  const u1 = db.collection('places')
     .where('userId', '==', currentUser.id)
     .onSnapshot(
-      snapshot => {
-        cards = snapshot.docs.map(d => d.data())
-          .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-        if (map) refreshPins();
-        updateBadge();
-        if (currentTab === 'feed') renderFeed();
+      snap => setCardBucket('personal', snap.docs.map(d => d.data())),
+      err  => toast('데이터 로드 오류: ' + err.message)
+    );
+  placesUnsubList.push(u1);
+
+  myCollections.forEach(col => {
+    const u = db.collection('places')
+      .where('collectionId', '==', col.id)
+      .onSnapshot(
+        snap => setCardBucket(col.id, snap.docs.map(d => d.data())),
+        err  => console.error('[col places]', err)
+      );
+    placesUnsubList.push(u);
+  });
+}
+
+function subscribeToCollections() {
+  if (collectionsUnsub) collectionsUnsub();
+  collectionsUnsub = db.collection('collections')
+    .where('members', 'array-contains', currentUser.id)
+    .onSnapshot(
+      snap => {
+        myCollections = snap.docs.map(d => d.data());
+        updateCollectionSelector();
+        refreshPlacesSubscriptions();
+        if (currentTab === 'collections') renderCollectionsView();
       },
-      err => toast('데이터 로드 오류: ' + err.message)
+      err => toast('컬렉션 로드 오류: ' + err.message)
     );
 }
 
 // ── 카카오 인증 ───────────────────────────────────────────────────────────────
 function initAuth() {
   if (!Kakao.isInitialized()) Kakao.init(KAKAO_JS_KEY);
+
+  const params = new URLSearchParams(location.search);
+  const invite = params.get('invite');
+  if (invite) {
+    localStorage.setItem('placelog_pending_invite', invite);
+    history.replaceState({}, '', location.pathname);
+  }
 
   const stored = localStorage.getItem('placelog_user');
   if (stored) {
@@ -164,7 +211,8 @@ function loginWithKakao() {
 function onAuthReady() {
   hideLoginScreen();
   updateUserUI();
-  subscribeToPlaces();
+  subscribeToCollections();
+  handlePendingInvite();
 }
 
 function updateUserUI() {
@@ -213,12 +261,17 @@ function logout() {
   document.getElementById('profile-menu')?.classList.add('hidden');
   localStorage.removeItem('placelog_user');
   currentUser = null;
-  if (placesUnsub) { placesUnsub(); placesUnsub = null; }
+  if (collectionsUnsub) { collectionsUnsub(); collectionsUnsub = null; }
+  placesUnsubList.forEach(u => u());
+  placesUnsubList = [];
+  cardBuckets.clear();
+  myCollections = [];
   cards = [];
   Object.keys(markers).forEach(id => removePin(id));
   updateBadge();
   const el = document.getElementById('user-avatar');
   if (el) { el.classList.add('hidden'); el.innerHTML = ''; }
+  switchTab('map');
   showLoginScreen();
 }
 
@@ -530,6 +583,7 @@ function resetAddForm() {
   document.getElementById('s-upzone').style.display = '';
   document.getElementById('add-memo').value = '';
   document.getElementById('add-date').value = today();
+  document.getElementById('add-collection').value = '';
   pendingFile = null;
   selCat = 'other';
   switchAddTab('yt');
@@ -651,8 +705,7 @@ async function saveCard() {
     createdAt:    new Date().toISOString(),
     userId:       currentUser.id,
     userNickname: currentUser.nickname,
-    sharedWith:   [],          // 초대 기능용: 공유 대상 userId 배열
-    visibility:   'private',   // 'private' | 'shared' | 'public'
+    collectionId: document.getElementById('add-collection').value || null,
   };
 
   if (mediaType === 'video' && pendingFile) {
@@ -899,29 +952,26 @@ function switchTab(tab) {
   currentTab = tab;
   const isMap  = tab === 'map';
   const isFeed = tab === 'feed';
+  const isColl = tab === 'collections';
 
-  // 지도 탭 UI
-  document.getElementById('map').style.display           = isMap ? '' : 'none';
-  document.getElementById('btn-fab').style.display       = isMap ? '' : 'none';
-  document.querySelector('.btn-myloc').style.display     = isMap ? '' : 'none';
-  document.querySelector('.zoom-ctrl').style.display     = isMap ? '' : 'none';
+  document.getElementById('map').style.display       = isMap ? '' : 'none';
+  document.getElementById('btn-fab').style.display   = isMap ? '' : 'none';
+  document.querySelector('.btn-myloc').style.display = isMap ? '' : 'none';
+  document.querySelector('.zoom-ctrl').style.display = isMap ? '' : 'none';
   document.getElementById('search-wrap').classList.toggle('hidden', !isMap);
 
-  // 추가 모드 중 탭 전환 시 취소
   if (!isMap && addMode) cancelAddMode();
 
-  // 피드 뷰
   document.getElementById('feed-view').classList.toggle('hidden', !isFeed);
+  document.getElementById('coll-view').classList.toggle('hidden', !isColl);
 
-  // 탭 버튼 활성 상태
   document.getElementById('tab-map').classList.toggle('active', isMap);
   document.getElementById('tab-feed').classList.toggle('active', isFeed);
+  document.getElementById('tab-coll').classList.toggle('active', isColl);
 
-  if (isFeed) {
-    renderFeed();
-  } else {
-    setTimeout(() => map && map.relayout(), 50);
-  }
+  if (isFeed)      renderFeed();
+  else if (isColl) renderCollectionsView();
+  else             setTimeout(() => map && map.relayout(), 50);
 }
 
 // ── 지역 추출 (카카오 주소 → 시/구 단위) ──────────────────────────────────────
@@ -1003,6 +1053,8 @@ function renderFeedList() {
 
 function feedCard(card) {
   const cat = CATS[card.category] || CATS.other;
+  const col = card.collectionId ? myCollections.find(c => c.id === card.collectionId) : null;
+  const byOther = card.userId !== currentUser?.id;
 
   let media = '';
   if (card.mediaType === 'youtube' && card.mediaId) {
@@ -1023,11 +1075,15 @@ function feedCard(card) {
   return `<div class="fc" onclick="openFromFeed('${card.id}')">
     ${media}
     <div class="fc-body">
-      <span class="fc-cat" style="color:${cat.color}">${cat.emoji} ${cat.label}</span>
+      <div class="fc-top-row">
+        <span class="fc-cat" style="color:${cat.color}">${cat.emoji} ${cat.label}</span>
+        ${col ? `<span class="fc-coll"># ${esc(col.name)}</span>` : ''}
+      </div>
       <div class="fc-name">${esc(card.name)}</div>
       ${card.address ? `<div class="fc-addr">${esc(card.address)}</div>` : ''}
       ${card.date    ? `<div class="fc-date">📅 ${card.date}</div>`     : ''}
       ${card.memo    ? `<div class="fc-memo">${esc(card.memo)}</div>`   : ''}
+      ${byOther      ? `<div class="fc-author">by ${esc(card.userNickname || '?')}</div>` : ''}
     </div>
   </div>`;
 }
@@ -1035,6 +1091,164 @@ function feedCard(card) {
 function openFromFeed(id) {
   switchTab('map');
   setTimeout(() => openViewSheet(id), 120);
+}
+
+// ── 컬렉션 UI ────────────────────────────────────────────────────────────────
+function renderCollectionsView() {
+  const list = document.getElementById('coll-list');
+  if (!list) return;
+
+  if (!myCollections.length) {
+    list.innerHTML = '<p class="coll-empty">아직 컬렉션이 없어요.<br>새 컬렉션을 만들거나 초대 링크로 참여해보세요.</p>';
+    return;
+  }
+
+  list.innerHTML = myCollections.map(col => {
+    const placeCount = cards.filter(c => c.collectionId === col.id).length;
+    const isOwner    = col.ownerId === currentUser.id;
+    return `<div class="coll-item">
+      <div class="ci-body">
+        <div class="ci-name">${esc(col.name)}</div>
+        <div class="ci-meta">
+          <span>${col.members.length}명 · ${placeCount}곳</span>
+          ${!isOwner ? '<span class="ci-badge">참여중</span>' : ''}
+        </div>
+      </div>
+      <div class="ci-btns">
+        <button class="ci-btn ci-share" onclick="shareCollection('${col.id}')">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92 1.61 0 2.92-1.31 2.92-2.92s-1.31-2.92-2.92-2.92z"/></svg>
+          초대
+        </button>
+        ${isOwner
+          ? `<button class="ci-btn ci-del" onclick="deleteCollection('${col.id}')">삭제</button>`
+          : `<button class="ci-btn ci-leave" onclick="leaveCollection('${col.id}')">나가기</button>`}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function updateCollectionSelector() {
+  const sel = document.getElementById('add-collection');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">개인 기록</option>' +
+    myCollections.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+}
+
+function showCreateCollection() {
+  document.getElementById('coll-name-inp').value = '';
+  document.getElementById('create-coll-modal').classList.remove('hidden');
+  setTimeout(() => document.getElementById('coll-name-inp').focus(), 80);
+}
+
+function closeCreateCollection() {
+  document.getElementById('create-coll-modal').classList.add('hidden');
+}
+
+async function saveCollection() {
+  const name = document.getElementById('coll-name-inp').value.trim();
+  if (!name) { toast('컬렉션 이름을 입력해주세요'); return; }
+
+  const id         = uid();
+  const inviteCode = Math.random().toString(36).slice(2, 10).toUpperCase();
+  const col = {
+    id, name, inviteCode,
+    ownerId:       currentUser.id,
+    ownerNickname: currentUser.nickname,
+    members:       [currentUser.id],
+    createdAt:     new Date().toISOString(),
+  };
+
+  try {
+    await db.collection('collections').doc(id).set(col);
+    closeCreateCollection();
+    toast(`"${name}" 컬렉션을 만들었어요 ✓`);
+  } catch (e) {
+    toast('만들기에 실패했어요');
+  }
+}
+
+async function shareCollection(colId) {
+  const col = myCollections.find(c => c.id === colId);
+  if (!col) return;
+  const link = `${location.origin}${location.pathname}?invite=${col.inviteCode}`;
+  if (navigator.share) {
+    try { await navigator.share({ title: col.name, url: link }); return; }
+    catch (e) { if (e.name === 'AbortError') return; }
+  }
+  await navigator.clipboard.writeText(link).catch(() => {});
+  toast('초대 링크가 복사됐어요 ✓');
+}
+
+async function deleteCollection(colId) {
+  const col = myCollections.find(c => c.id === colId);
+  if (!col || col.ownerId !== currentUser.id) return;
+  if (!confirm(`"${col.name}" 컬렉션을 삭제할까요?`)) return;
+  try {
+    await db.collection('collections').doc(colId).delete();
+    toast('컬렉션이 삭제됐어요');
+  } catch (e) {
+    toast('삭제에 실패했어요');
+  }
+}
+
+async function leaveCollection(colId) {
+  const col = myCollections.find(c => c.id === colId);
+  if (!col) return;
+  if (!confirm(`"${col.name}" 컬렉션에서 나갈까요?`)) return;
+  try {
+    await db.collection('collections').doc(colId).update({
+      members: firebase.firestore.FieldValue.arrayRemove(currentUser.id),
+    });
+    toast('컬렉션에서 나왔어요');
+  } catch (e) {
+    toast('처리에 실패했어요');
+  }
+}
+
+// ── 초대 수락 ─────────────────────────────────────────────────────────────────
+async function handlePendingInvite() {
+  const code = localStorage.getItem('placelog_pending_invite');
+  if (!code) return;
+  localStorage.removeItem('placelog_pending_invite');
+  try {
+    const snap = await db.collection('collections')
+      .where('inviteCode', '==', code).limit(1).get();
+    if (snap.empty) { toast('유효하지 않은 초대 링크예요'); return; }
+    const col = snap.docs[0].data();
+    if (col.members.includes(currentUser.id)) {
+      toast(`이미 "${col.name}" 컬렉션의 멤버예요`); return;
+    }
+    pendingInviteCol = col;
+    const msg = document.getElementById('invite-msg');
+    if (msg) msg.innerHTML =
+      `<strong>${esc(col.ownerNickname)}</strong>님의 <strong>${esc(col.name)}</strong> 컬렉션에 초대됐어요. 참여할까요?`;
+    document.getElementById('invite-modal')?.classList.remove('hidden');
+  } catch (e) {
+    toast('초대 링크 확인 중 오류가 발생했어요');
+  }
+}
+
+async function acceptInvite() {
+  if (!pendingInviteCol) return;
+  const btn = document.getElementById('btn-accept-invite');
+  btn.disabled = true;
+  try {
+    await db.collection('collections').doc(pendingInviteCol.id).update({
+      members: firebase.firestore.FieldValue.arrayUnion(currentUser.id),
+    });
+    document.getElementById('invite-modal').classList.add('hidden');
+    toast(`"${pendingInviteCol.name}" 컬렉션에 참여했어요! 🎉`);
+    pendingInviteCol = null;
+  } catch (e) {
+    toast('참여에 실패했어요. 다시 시도해주세요');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function declineInvite() {
+  pendingInviteCol = null;
+  document.getElementById('invite-modal').classList.add('hidden');
 }
 
 function updateBadge() {

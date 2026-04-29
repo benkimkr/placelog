@@ -163,6 +163,11 @@
         <div class="s-mprev" id="cam-prev"></div>
       </div>
 
+      <!-- 컬렉션 선택 -->
+      <select class="s-inp s-sel" id="add-collection">
+        <option value="">개인 기록</option>
+      </select>
+
       <!-- 날짜 · 메모 -->
       <input class="s-inp" type="date" id="add-date" />
       <textarea class="s-inp s-ta" id="add-memo" placeholder="메모 (선택)"></textarea>
@@ -180,6 +185,18 @@
     <div class="feed-list"    id="feed-list"></div>
   </div>
 
+  <!-- 컬렉션 뷰 -->
+  <div class="coll-view hidden" id="coll-view">
+    <div class="coll-topbar">
+      <h2 class="coll-title">컬렉션</h2>
+      <button class="btn-coll-new" onclick="showCreateCollection()">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+        새 컬렉션
+      </button>
+    </div>
+    <div class="coll-list" id="coll-list"></div>
+  </div>
+
   <!-- 탭 바 -->
   <nav class="tab-bar">
     <button class="tab-btn active" id="tab-map" onclick="switchTab('map')">
@@ -194,10 +211,45 @@
       </svg>
       <span>피드</span>
     </button>
+    <button class="tab-btn" id="tab-coll" onclick="switchTab('collections')">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M4 8h4V4H4v4zm6 12h4v-4h-4v4zm-6 0h4v-4H4v4zm0-6h4v-4H4v4zm6 0h4v-4h-4v4zm6-10v4h4V4h-4zm-6 4h4V4h-4v4zm6 6h4v-4h-4v4zm0 6h4v-4h-4v4z"/>
+      </svg>
+      <span>컬렉션</span>
+    </button>
   </nav>
 
   <!-- 토스트 -->
   <div class="toast hidden" id="toast"></div>
+
+  <!-- 새 컬렉션 모달 -->
+  <div class="modal-overlay hidden" id="create-coll-modal">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3>새 컬렉션</h3>
+        <button class="btn-sx" onclick="closeCreateCollection()">✕</button>
+      </div>
+      <input class="s-inp" id="coll-name-inp" type="text" placeholder="예: 도쿄 여행, 고양 맛집" autocomplete="off" />
+      <div class="modal-btns">
+        <button class="btn-cancel" onclick="closeCreateCollection()">취소</button>
+        <button class="btn-save" onclick="saveCollection()">만들기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 초대 수락 모달 -->
+  <div class="modal-overlay hidden" id="invite-modal">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3>컬렉션 초대</h3>
+      </div>
+      <p class="invite-msg" id="invite-msg"></p>
+      <div class="modal-btns">
+        <button class="btn-cancel" onclick="declineInvite()">거절</button>
+        <button class="btn-save" id="btn-accept-invite" onclick="acceptInvite()">참여하기</button>
+      </div>
+    </div>
+  </div>
 
   <!-- 로그인 화면 -->
   <div class="login-screen hidden" id="login-screen">

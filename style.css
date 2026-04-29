@@ -1113,10 +1113,13 @@ html, body {
   gap: 4px;
 }
 
-.fc-cat  { font-size: 11px; font-weight: 700; }
-.fc-name { font-size: 16px; font-weight: 700; color: var(--text); line-height: 1.3; }
-.fc-addr { font-size: 12px; color: var(--tmut); }
-.fc-date { font-size: 12px; color: var(--tmut); margin-top: 2px; }
+.fc-top-row { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+.fc-cat    { font-size: 11px; font-weight: 700; }
+.fc-coll   { font-size: 11px; color: var(--acc2); font-weight: 600; }
+.fc-name   { font-size: 16px; font-weight: 700; color: var(--text); line-height: 1.3; }
+.fc-addr   { font-size: 12px; color: var(--tmut); }
+.fc-date   { font-size: 12px; color: var(--tmut); margin-top: 2px; }
+.fc-author { font-size: 11px; color: var(--tmut); margin-top: 4px; }
 .fc-memo {
   font-size: 13px;
   color: var(--t2);
@@ -1126,4 +1129,177 @@ html, body {
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+/* ── 컬렉션 뷰 ── */
+.coll-view {
+  position: fixed;
+  top: var(--header-h);
+  left: 0; right: 0;
+  bottom: var(--tab-h);
+  z-index: 10;
+  background: var(--bg);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+.coll-view.hidden { display: none; }
+
+.coll-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--bg);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--bd);
+  box-shadow: 0 4px 16px rgba(0,0,0,.4);
+}
+.coll-title { font-size: 17px; font-weight: 700; }
+
+.btn-coll-new {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 14px;
+  background: var(--grad);
+  border: none;
+  border-radius: 50px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: opacity .2s;
+}
+.btn-coll-new:hover { opacity: .86; }
+
+.coll-list {
+  padding: 12px 16px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.coll-empty {
+  text-align: center;
+  color: var(--tmut);
+  font-size: 14px;
+  line-height: 1.7;
+  padding: 60px 20px;
+}
+
+.coll-item {
+  background: var(--s1);
+  border: 1px solid var(--bd);
+  border-radius: var(--r);
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.ci-body { flex: 1; min-width: 0; }
+.ci-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 4px;
+}
+.ci-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--tmut);
+}
+.ci-badge {
+  background: rgba(14,165,233,.15);
+  color: var(--acc2);
+  border-radius: 50px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.ci-btns { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.ci-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 12px;
+  border-radius: var(--rx);
+  border: 1px solid var(--bdm);
+  background: var(--s2);
+  color: var(--t2);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background .15s, color .15s;
+}
+.ci-btn:hover    { background: var(--s3); color: var(--text); }
+.ci-share:hover  { color: var(--acc2); border-color: rgba(14,165,233,.3); }
+.ci-del:hover    { color: #f87171; border-color: rgba(248,113,113,.25); }
+.ci-leave:hover  { color: #fbbf24; border-color: rgba(251,191,36,.25); }
+
+/* ── 모달 ── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 800;
+  background: rgba(0,0,0,.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  animation: fadeIn .15s ease;
+}
+.modal-overlay.hidden { display: none; }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+.modal-card {
+  width: 100%;
+  max-width: 380px;
+  background: var(--s1);
+  border: 1px solid var(--bdm);
+  border-radius: var(--r);
+  padding: 20px;
+  box-shadow: var(--shad);
+  animation: pmIn .18s ease;
+}
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+.modal-head h3 { font-size: 17px; font-weight: 700; }
+.modal-btns {
+  display: flex;
+  gap: 10px;
+  margin-top: 4px;
+}
+.invite-msg {
+  font-size: 14px;
+  color: var(--t2);
+  line-height: 1.65;
+  margin-bottom: 20px;
+}
+.invite-msg strong { color: var(--text); }
+
+/* ── 컬렉션 셀렉터 ── */
+.s-sel {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='%2355556a'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  padding-right: 36px;
+  cursor: pointer;
 }
