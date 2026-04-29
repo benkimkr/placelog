@@ -16,13 +16,21 @@ let db;
 
 // ── 카테고리 ──────────────────────────────────────────────────────────────────
 const CATS = {
-  food:     { label: '음식점', emoji: '🍽️', color: '#ff6b6b' },
-  cafe:     { label: '카페',   emoji: '☕',  color: '#ffa726' },
-  landmark: { label: '관광지', emoji: '🏛️', color: '#42a5f5' },
-  shopping: { label: '쇼핑',   emoji: '🛍️', color: '#ec407a' },
-  nature:   { label: '자연',   emoji: '🌿', color: '#66bb6a' },
-  other:    { label: '기타',   emoji: '📍', color: '#0057ff' },
+  park:    { label: '공원',        emoji: '🌳', color: '#4ade80' },
+  trail:   { label: '산책로',      emoji: '🐾', color: '#86efac' },
+  dogcafe: { label: '강아지 카페', emoji: '🐶', color: '#fb923c' },
+  vet:     { label: '동물병원',    emoji: '🏥', color: '#60a5fa' },
+  petshop: { label: '반려견 용품', emoji: '🛍️', color: '#f472b6' },
 };
+
+// 발바닥 SVG (핀 마커용)
+const PAW_SVG = `<svg class="pin-paw" viewBox="0 0 24 24" width="19" height="19" fill="rgba(255,255,255,.95)">
+  <ellipse cx="12" cy="16.5" rx="5.2" ry="4.2"/>
+  <circle cx="6.2"  cy="11.5" r="2.4"/>
+  <circle cx="10.4" cy="7.8"  r="2.4"/>
+  <circle cx="13.6" cy="7.8"  r="2.4"/>
+  <circle cx="17.8" cy="11.5" r="2.4"/>
+</svg>`;
 
 // ── IndexedDB (동영상 blob) ───────────────────────────────────────────────────
 const videoDB = (() => {
@@ -62,7 +70,7 @@ let tempAddr      = '';
 let pendingFile   = null;
 let activeId      = null;
 let addTab        = 'yt';
-let selCat        = 'other';
+let selCat        = 'park';
 let searchResults = [];
 
 // 인증
@@ -327,10 +335,10 @@ function initMap() {
 
 // ── 오버레이 콘텐츠 생성 ──────────────────────────────────────────────────────
 function makeOverlayContent(cat, active, clickId) {
-  const c = CATS[cat] || CATS.other;
+  const c = CATS[cat] || CATS.park;
   const wrap = document.createElement('div');
   wrap.innerHTML = `<div class="map-pin${active ? ' is-active' : ''}" style="--pc:${c.color}">
-    <div class="pin-bub"><span class="pin-emoji">${c.emoji}</span></div>
+    <div class="pin-bub">${PAW_SVG}</div>
   </div>`;
   const pin = wrap.firstChild;
   if (clickId) pin.addEventListener('click', () => openViewSheet(clickId));
@@ -339,8 +347,8 @@ function makeOverlayContent(cat, active, clickId) {
 
 function makeTempContent() {
   const wrap = document.createElement('div');
-  wrap.innerHTML = `<div class="map-pin pin-temp" style="--pc:#8b5cf6;touch-action:none">
-    <div class="pin-bub"><span class="pin-emoji">📍</span></div>
+  wrap.innerHTML = `<div class="map-pin pin-temp" style="--pc:#f97316;touch-action:none">
+    <div class="pin-bub">${PAW_SVG}</div>
   </div>`;
   return wrap.firstChild;
 }
@@ -542,7 +550,7 @@ async function populateView(id) {
   const card = cards.find(c => c.id === id);
   if (!card) return;
 
-  const cat = CATS[card.category] || CATS.other;
+  const cat = CATS[card.category] || CATS.park;
   const catEl = document.getElementById('sv-cat');
   catEl.textContent = `${cat.emoji} ${cat.label}`;
   catEl.style.color = cat.color;
@@ -585,10 +593,10 @@ function resetAddForm() {
   document.getElementById('add-date').value = today();
   document.getElementById('add-collection').value = '';
   pendingFile = null;
-  selCat = 'other';
+  selCat = 'park';
   switchAddTab('yt');
   document.querySelectorAll('.cat-pill').forEach(p =>
-    p.classList.toggle('active', p.dataset.cat === 'other')
+    p.classList.toggle('active', p.dataset.cat === 'park')
   );
 }
 
@@ -602,7 +610,7 @@ function buildCatPills() {
   const wrap = document.getElementById('cat-pills');
   Object.entries(CATS).forEach(([key, c]) => {
     const btn = document.createElement('button');
-    btn.className = `cat-pill${key === 'other' ? ' active' : ''}`;
+    btn.className = `cat-pill${key === 'park' ? ' active' : ''}`;
     btn.dataset.cat = key;
     btn.textContent = `${c.emoji} ${c.label}`;
     btn.onclick = () => {
@@ -717,7 +725,7 @@ async function saveCard() {
     clearTempPin();
     cancelAddMode();
     closeSheet();
-    toast(`${name} 저장됐어요 📍`);
+    toast(`${name} 저장됐어요 🐾`);
   } catch (e) {
     btn.disabled = false;
     btn.innerHTML = '저장하기 📍';
@@ -748,14 +756,14 @@ async function shareActive() {
   const card = cards.find(c => c.id === activeId);
   if (!card) return;
 
-  const cat  = CATS[card.category] || CATS.other;
+  const cat  = CATS[card.category] || CATS.park;
   const text = [
     `${cat.emoji} ${card.name}`,
     card.address,
     card.memo,
     `🗺️ https://maps.google.com/?q=${card.lat},${card.lon}`,
     '',
-    'PLACELOG으로 기록됨',
+    '킁킁로그로 기록됨',
   ].filter(Boolean).join('\n');
 
   if (navigator.share) {
@@ -1028,7 +1036,7 @@ function renderFeedList() {
     : cards.filter(c => cardRegion(c) === feedRegion);
 
   if (!items.length) {
-    list.innerHTML = '<p class="feed-empty">저장된 장소가 없어요</p>';
+    list.innerHTML = '<p class="feed-empty">아직 산책 기록이 없어요 🐾</p>';
     return;
   }
 
@@ -1052,7 +1060,7 @@ function renderFeedList() {
 }
 
 function feedCard(card) {
-  const cat = CATS[card.category] || CATS.other;
+  const cat = CATS[card.category] || CATS.park;
   const col = card.collectionId ? myCollections.find(c => c.id === card.collectionId) : null;
   const byOther = card.userId !== currentUser?.id;
 
@@ -1252,7 +1260,7 @@ function declineInvite() {
 }
 
 function updateBadge() {
-  document.getElementById('pin-badge').textContent = `${cards.length} 곳`;
+  document.getElementById('pin-badge').textContent = `🐾 ${cards.length}곳`;
 }
 
 // ── 유틸 ─────────────────────────────────────────────────────────────────────
@@ -1269,7 +1277,7 @@ function shortName(addr) {
   if (!addr) return '새 장소';
   const parts = addr.trim().split(/\s+/);
   // 광역시/도 제외, 구/동 수준 2개
-  return parts.slice(1, 3).join(' ') || parts[0] || '새 장소';
+  return parts.slice(1, 3).join(' ') || parts[0] || '새 산책 장소';
 }
 
 function esc(s) {

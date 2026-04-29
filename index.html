@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="theme-color" content="#0a0a0f">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <title>PLACELOG</title>
+  <title>킁킁로그</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -16,7 +16,7 @@
   <!-- 헤더 HUD -->
   <header class="hud-header">
     <div class="logo-pill">
-      <span class="logo">PLACELOG</span>
+      <span class="logo">킁킁로그</span>
     </div>
     <div class="hud-right">
       <div class="pin-badge" id="pin-badge">0 곳</div>
@@ -46,7 +46,7 @@
       <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
         <path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
       </svg>
-      <input type="search" id="search-input" placeholder="장소 검색..."
+      <input type="search" id="search-input" placeholder="산책 장소 검색..."
              autocomplete="off" autocorrect="off" spellcheck="false" />
       <button class="btn-sc hidden" id="btn-sc" onclick="clearSearch()">✕</button>
     </div>
@@ -55,7 +55,7 @@
 
   <!-- 추가 모드 배너 -->
   <div class="add-banner hidden" id="add-banner">
-    <span>📍 지도를 탭해서 핀을 꽂아주세요</span>
+    <span>🐾 지도를 탭해서 핀을 꽂아주세요</span>
     <button onclick="cancelAddMode()">취소</button>
   </div>
 
@@ -122,11 +122,11 @@
     <!-- 추가 패널 -->
     <div class="s-panel hidden" id="p-add">
       <div class="sa-toprow">
-        <h3>새 장소 기록</h3>
+        <h3>새 산책 기록 🐾</h3>
         <button class="btn-sx" onclick="cancelAdd()">✕</button>
       </div>
 
-      <input class="s-inp" type="text" id="add-name" placeholder="장소명을 입력하세요" autocomplete="off" />
+      <input class="s-inp" type="text" id="add-name" placeholder="산책 장소 이름을 입력하세요" autocomplete="off" />
       <p class="add-addr-hint" id="add-addr"></p>
 
       <!-- 카테고리 -->
@@ -174,7 +174,7 @@
 
       <div class="sa-btns">
         <button class="btn-cancel" onclick="cancelAdd()">취소</button>
-        <button class="btn-save" id="btn-save" onclick="saveCard()">저장하기 📍</button>
+        <button class="btn-save" id="btn-save" onclick="saveCard()">저장하기 🐾</button>
       </div>
     </div>
   </div>
@@ -255,8 +255,8 @@
   <div class="login-screen hidden" id="login-screen">
     <div class="login-card">
       <div class="login-brand">
-        <span class="login-logo">PLACELOG</span>
-        <p class="login-sub">나만의 장소를 기록하세요</p>
+        <span class="login-logo">킁킁로그</span>
+        <p class="login-sub">우리 강아지 산책 기록</p>
       </div>
       <button class="btn-kakao" id="btn-kakao" onclick="loginWithKakao()">
         <svg width="20" height="18" viewBox="0 0 20 18" fill="currentColor">

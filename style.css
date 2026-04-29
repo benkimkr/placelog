@@ -12,9 +12,9 @@
   --text: #f0f0f8;
   --t2:   #a0a0be;
   --tmut: #55556a;
-  --acc:  #0057ff;
-  --acc2: #0ea5e9;
-  --grad: linear-gradient(135deg, #0057ff 0%, #0ea5e9 100%);
+  --acc:  #f97316;
+  --acc2: #fb923c;
+  --grad: linear-gradient(135deg, #f97316 0%, #fbbf24 100%);
   --shad: 0 8px 36px rgba(0,0,0,.65);
   --sm:   0 2px 10px rgba(0,0,0,.4);
   --r:    16px;
@@ -72,9 +72,9 @@ html, body {
 }
 
 .login-logo {
-  font-size: 28px;
+  font-size: 30px;
   font-weight: 900;
-  letter-spacing: 5px;
+  letter-spacing: 2px;
   background: var(--grad);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -140,9 +140,9 @@ html, body {
 }
 
 .logo {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 900;
-  letter-spacing: 3px;
+  letter-spacing: 1px;
   background: var(--grad);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -278,7 +278,7 @@ html, body {
 }
 .search-bar:focus-within {
   border-color: var(--acc);
-  box-shadow: 0 0 0 3px rgba(0,87,255,.15);
+  box-shadow: 0 0 0 3px rgba(249,115,22,.18);
 }
 
 .search-icon { flex-shrink: 0; color: var(--tmut); }
@@ -412,7 +412,7 @@ html, body {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  box-shadow: 0 4px 18px rgba(139,92,246,.55);
+  box-shadow: 0 4px 18px rgba(249,115,22,.5);
   transition: transform .2s, box-shadow .2s, background .25s;
   -webkit-tap-highlight-color: transparent;
 }
@@ -514,6 +514,11 @@ html, body {
   line-height: 1;
   display: block;
 }
+.pin-paw {
+  transform: rotate(45deg);
+  display: block;
+  flex-shrink: 0;
+}
 
 /* 활성 핀 */
 .map-pin.is-active .pin-bub {
@@ -524,7 +529,7 @@ html, body {
 
 /* 임시(배치 중) 핀 */
 .map-pin.pin-temp .pin-bub {
-  background: linear-gradient(135deg, #8b5cf6, #ec4899);
+  background: linear-gradient(135deg, #f97316, #fbbf24);
   border: 2px dashed rgba(255,255,255,.5);
   animation: pulse-pin .75s ease-in-out infinite alternate;
 }
@@ -720,7 +725,7 @@ html, body {
 .s-inp::placeholder { color: var(--tmut); }
 .s-inp:focus {
   border-color: var(--acc);
-  box-shadow: 0 0 0 3px rgba(139,92,246,.13);
+  box-shadow: 0 0 0 3px rgba(249,115,22,.15);
 }
 
 .s-ta {
@@ -832,7 +837,7 @@ html, body {
 .s-upzone:hover,
 .s-upzone.drag-over {
   border-color: var(--acc);
-  background: rgba(139,92,246,.05);
+  background: rgba(249,115,22,.05);
   color: var(--t2);
 }
 .s-upzone .hint { font-size: 11px; }
