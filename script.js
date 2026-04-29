@@ -102,6 +102,7 @@ function setCardBucket(key, newCards) {
   updateBadge();
   if (currentTab === 'feed') renderFeed();
   if (currentTab === 'collections') renderCollectionsView();
+  if (isFogEnabled) drawFog();
 }
 
 function refreshPlacesSubscriptions() {
@@ -216,6 +217,7 @@ function onAuthReady() {
   hideLoginScreen();
   updateUserUI();
   subscribeToCollections();
+  subscribeToRoutes();
   handlePendingInvite();
 }
 
@@ -263,6 +265,20 @@ function updateProfileMenu() {
 
 function logout() {
   document.getElementById('profile-menu')?.classList.add('hidden');
+
+  // 경로 기록 중이면 정리
+  if (isRecording) {
+    if (routeWatchId != null) { navigator.geolocation.clearWatch(routeWatchId); routeWatchId = null; }
+    clearInterval(routeTimer); routeTimer = null;
+    isRecording = false;
+  }
+  if (currentPolyline) { currentPolyline.setMap(null); currentPolyline = null; }
+  if (routesUnsub) { routesUnsub(); routesUnsub = null; }
+  routeCards = []; routePoints = [];
+
+  // 안개지도 끄기
+  if (isFogEnabled) toggleFog();
+
   localStorage.removeItem('placelog_user');
   currentUser = null;
   if (collectionsUnsub) { collectionsUnsub(); collectionsUnsub = null; }
@@ -296,6 +312,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     initMap();
     buildCatPills();
     setupListeners();
+    initFogCanvas();
     document.getElementById('add-date').value = today();
   } catch (e) {
     console.error('[init]', e);
@@ -954,28 +971,35 @@ function setupSheetDrag() {
 // ── 탭 전환 ──────────────────────────────────────────────────────────────────
 function switchTab(tab) {
   currentTab = tab;
-  const isMap  = tab === 'map';
-  const isFeed = tab === 'feed';
-  const isColl = tab === 'collections';
+  const isMap   = tab === 'map';
+  const isFeed  = tab === 'feed';
+  const isColl  = tab === 'collections';
+  const isRoute = tab === 'route';
 
   document.getElementById('map').style.display       = isMap ? '' : 'none';
   document.getElementById('btn-fab').style.display   = isMap ? '' : 'none';
   document.querySelector('.btn-myloc').style.display = isMap ? '' : 'none';
   document.querySelector('.zoom-ctrl').style.display = isMap ? '' : 'none';
   document.getElementById('search-wrap').classList.toggle('hidden', !isMap);
+  document.getElementById('btn-fog')?.classList.toggle('hidden', !isMap);
+  document.getElementById('fog-stats-pill')?.classList.toggle('hidden', !(isMap && isFogEnabled));
+  if (fogCanvas) fogCanvas.style.display = (isMap && isFogEnabled) ? '' : 'none';
 
   if (!isMap && addMode) cancelAddMode();
 
   document.getElementById('feed-view').classList.toggle('hidden', !isFeed);
   document.getElementById('coll-view').classList.toggle('hidden', !isColl);
+  document.getElementById('route-view').classList.toggle('hidden', !isRoute);
 
   document.getElementById('tab-map').classList.toggle('active', isMap);
   document.getElementById('tab-feed').classList.toggle('active', isFeed);
   document.getElementById('tab-coll').classList.toggle('active', isColl);
+  document.getElementById('tab-route')?.classList.toggle('active', isRoute);
 
-  if (isFeed)      renderFeed();
-  else if (isColl) renderCollectionsView();
-  else             setTimeout(() => map && map.relayout(), 50);
+  if (isFeed)       renderFeed();
+  else if (isColl)  renderCollectionsView();
+  else if (isRoute) { updateRouteUI(); renderRouteList(); }
+  else              setTimeout(() => map && map.relayout(), 50);
 }
 
 // ── 지역 추출 (카카오 주소 → 시/구 단위) ──────────────────────────────────────
@@ -1294,4 +1318,324 @@ function toast(msg) {
   el.classList.remove('hidden');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => el.classList.add('hidden'), 3000);
+}
+
+// ── GPS 경로 기록 ─────────────────────────────────────────────────────────────
+let isRecording    = false;
+let routePoints    = [];
+let routeWatchId   = null;
+let routeStartTime = null;
+let routeTimer     = null;
+let currentPolyline = null;
+let routeCards     = [];
+let routesUnsub    = null;
+
+function startRoute() {
+  if (!navigator.geolocation) { toast('GPS 권한이 필요해요'); return; }
+  if (isRecording) return;
+
+  isRecording    = true;
+  routePoints    = [];
+  routeStartTime = Date.now();
+
+  document.getElementById('tab-route')?.classList.add('recording');
+  updateRouteUI();
+
+  routeWatchId = navigator.geolocation.watchPosition(
+    pos => {
+      const pt = { lat: pos.coords.latitude, lon: pos.coords.longitude, ts: Date.now() };
+      routePoints.push(pt);
+      drawRouteLine();
+    },
+    err => toast('GPS 오류: ' + err.message),
+    { enableHighAccuracy: true, maximumAge: 0 }
+  );
+
+  routeTimer = setInterval(updateRouteStat, 1000);
+
+  // 지도 탭으로 이동해 경로가 그려지는 걸 보여줌
+  switchTab('map');
+  toast('경로 기록을 시작했어요 🐾');
+}
+
+function stopRoute() {
+  if (!isRecording) return;
+
+  if (routeWatchId != null) {
+    navigator.geolocation.clearWatch(routeWatchId);
+    routeWatchId = null;
+  }
+  clearInterval(routeTimer);
+  routeTimer  = null;
+  isRecording = false;
+
+  document.getElementById('tab-route')?.classList.remove('recording');
+  updateRouteUI();
+
+  if (routePoints.length < 2) {
+    toast('경로가 너무 짧아요');
+    if (currentPolyline) { currentPolyline.setMap(null); currentPolyline = null; }
+    routePoints = [];
+    return;
+  }
+
+  saveRoute();
+}
+
+function drawRouteLine() {
+  if (!map || routePoints.length < 2) return;
+  if (currentPolyline) currentPolyline.setMap(null);
+
+  const path = routePoints.map(p => new kakao.maps.LatLng(p.lat, p.lon));
+  currentPolyline = new kakao.maps.Polyline({
+    path,
+    strokeWeight:  4,
+    strokeColor:   '#f97316',
+    strokeOpacity: 0.9,
+    strokeStyle:   'solid',
+  });
+  currentPolyline.setMap(map);
+}
+
+function calcDistance(pts) {
+  let total = 0;
+  for (let i = 1; i < pts.length; i++) {
+    total += haversine(pts[i-1].lat, pts[i-1].lon, pts[i].lat, pts[i].lon);
+  }
+  return total; // meters
+}
+
+function haversine(lat1, lon1, lat2, lon2) {
+  const R  = 6371000;
+  const φ1 = lat1 * Math.PI / 180;
+  const φ2 = lat2 * Math.PI / 180;
+  const Δφ = (lat2 - lat1) * Math.PI / 180;
+  const Δλ = (lon2 - lon1) * Math.PI / 180;
+  const a  = Math.sin(Δφ/2) ** 2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ/2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function updateRouteStat() {
+  if (!isRecording) return;
+  const elapsed = Math.floor((Date.now() - routeStartTime) / 1000);
+  const mm = String(Math.floor(elapsed / 60)).padStart(2, '0');
+  const ss = String(elapsed % 60).padStart(2, '0');
+  const km = (calcDistance(routePoints) / 1000).toFixed(2);
+
+  const timeEl = document.getElementById('rv-time');
+  const distEl = document.getElementById('rv-dist');
+  if (timeEl) timeEl.textContent = `${mm}:${ss}`;
+  if (distEl) distEl.textContent = km;
+}
+
+function updateRouteUI() {
+  document.getElementById('rv-recording')?.classList.toggle('hidden', !isRecording);
+  document.getElementById('rv-idle')?.classList.toggle('hidden', isRecording);
+  if (isRecording) updateRouteStat();
+}
+
+async function saveRoute() {
+  const dist  = calcDistance(routePoints);
+  const dur   = Math.floor((Date.now() - routeStartTime) / 1000);
+  const route = {
+    id:           uid(),
+    userId:       currentUser.id,
+    userNickname: currentUser.nickname,
+    points:       routePoints,
+    distance:     Math.round(dist),
+    duration:     dur,
+    startedAt:    new Date(routeStartTime).toISOString(),
+    createdAt:    new Date().toISOString(),
+  };
+
+  try {
+    await db.collection('routes').doc(route.id).set(route);
+    toast(`경로 저장 완료! ${(dist / 1000).toFixed(2)} km 🐾`);
+  } catch {
+    toast('경로 저장에 실패했어요');
+  }
+
+  if (currentPolyline) { currentPolyline.setMap(null); currentPolyline = null; }
+  routePoints    = [];
+  routeStartTime = null;
+}
+
+function subscribeToRoutes() {
+  if (routesUnsub) routesUnsub();
+  routesUnsub = db.collection('routes')
+    .where('userId', '==', currentUser.id)
+    .onSnapshot(
+      snap => {
+        routeCards = snap.docs.map(d => d.data())
+          .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+        if (currentTab === 'route') renderRouteList();
+      },
+      err => console.error('[routes]', err)
+    );
+}
+
+function renderRouteList() {
+  const list = document.getElementById('rv-list');
+  if (!list) return;
+
+  if (!routeCards.length) {
+    list.innerHTML = '<p class="rv-empty">아직 기록된 경로가 없어요 🐾</p>';
+    return;
+  }
+
+  list.innerHTML = routeCards.map(r => {
+    const km   = (r.distance / 1000).toFixed(2);
+    const mm   = String(Math.floor(r.duration / 60)).padStart(2, '0');
+    const ss   = String(r.duration % 60).padStart(2, '0');
+    const date = r.startedAt ? r.startedAt.slice(0, 10) : '';
+    return `<div class="rv-card" onclick="showRouteOnMap('${r.id}')">
+      <div class="rv-card-top">
+        <span class="rv-card-date">📅 ${date}</span>
+        <span class="rv-card-del" onclick="deleteRoute(event,'${r.id}')">✕</span>
+      </div>
+      <div class="rv-card-stats">
+        <span>📍 ${km} km</span>
+        <span>⏱ ${mm}:${ss}</span>
+        <span>🐾 ${r.points?.length ?? 0} 포인트</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function showRouteOnMap(routeId) {
+  const r = routeCards.find(x => x.id === routeId);
+  if (!r?.points?.length) return;
+
+  switchTab('map');
+  setTimeout(() => {
+    if (currentPolyline) currentPolyline.setMap(null);
+
+    const path = r.points.map(p => new kakao.maps.LatLng(p.lat, p.lon));
+    currentPolyline = new kakao.maps.Polyline({
+      path,
+      strokeWeight:  4,
+      strokeColor:   '#f97316',
+      strokeOpacity: 0.85,
+      strokeStyle:   'solid',
+    });
+    currentPolyline.setMap(map);
+
+    const bounds = new kakao.maps.LatLngBounds();
+    path.forEach(p => bounds.extend(p));
+    map.setBounds(bounds);
+  }, 100);
+}
+
+async function deleteRoute(e, routeId) {
+  e.stopPropagation();
+  if (!confirm('이 경로를 삭제할까요?')) return;
+  try {
+    await db.collection('routes').doc(routeId).delete();
+    toast('삭제됐어요');
+  } catch {
+    toast('삭제에 실패했어요');
+  }
+}
+
+// ── 안개지도 (Fog of War) ─────────────────────────────────────────────────────
+let isFogEnabled = false;
+let fogCanvas    = null;
+let fogCtx       = null;
+
+function initFogCanvas() {
+  fogCanvas = document.getElementById('fog-canvas');
+  if (!fogCanvas) return;
+  fogCtx = fogCanvas.getContext('2d');
+
+  resizeFogCanvas();
+  window.addEventListener('resize', resizeFogCanvas);
+
+  if (map) {
+    kakao.maps.event.addListener(map, 'center_changed', drawFog);
+    kakao.maps.event.addListener(map, 'zoom_changed',   drawFog);
+  }
+}
+
+function resizeFogCanvas() {
+  if (!fogCanvas) return;
+  const mapEl = document.getElementById('map');
+  fogCanvas.width  = mapEl.offsetWidth  || window.innerWidth;
+  fogCanvas.height = mapEl.offsetHeight || window.innerHeight;
+  if (isFogEnabled) drawFog();
+}
+
+function toggleFog() {
+  isFogEnabled = !isFogEnabled;
+  const btn      = document.getElementById('btn-fog');
+  const statsPill = document.getElementById('fog-stats-pill');
+
+  btn?.classList.toggle('active', isFogEnabled);
+  if (fogCanvas) fogCanvas.style.display = isFogEnabled ? '' : 'none';
+  statsPill?.classList.toggle('hidden', !isFogEnabled);
+
+  if (isFogEnabled) drawFog();
+  else if (fogCtx) fogCtx.clearRect(0, 0, fogCanvas.width, fogCanvas.height);
+}
+
+function computeFogRadius() {
+  if (!map) return 80;
+  try {
+    const proj      = map.getProjection();
+    const center    = map.getCenter();
+    const R         = 6371000;
+    const offsetDeg = (200 / R) * (180 / Math.PI); // 200m → degrees
+    const cPt = proj.containerPointFromCoords(new kakao.maps.LatLng(center.getLat(), center.getLng()));
+    const oPt = proj.containerPointFromCoords(new kakao.maps.LatLng(center.getLat() + offsetDeg, center.getLng()));
+    return Math.max(40, Math.abs(cPt.y - oPt.y));
+  } catch {
+    return 80;
+  }
+}
+
+function drawFog() {
+  if (!isFogEnabled || !fogCtx || !map) return;
+
+  const w = fogCanvas.width;
+  const h = fogCanvas.height;
+
+  fogCtx.clearRect(0, 0, w, h);
+  fogCtx.globalCompositeOperation = 'source-over';
+
+  // 어두운 안개 레이어
+  fogCtx.fillStyle = 'rgba(5, 5, 15, 0.80)';
+  fogCtx.fillRect(0, 0, w, h);
+
+  if (!cards.length) { updateFogStats(); return; }
+
+  // 방문한 장소마다 안개를 투명하게 걷어냄
+  fogCtx.globalCompositeOperation = 'destination-out';
+  const radius = computeFogRadius();
+  const proj   = map.getProjection();
+
+  cards.forEach(card => {
+    try {
+      const pt   = proj.containerPointFromCoords(new kakao.maps.LatLng(card.lat, card.lon));
+      const grad = fogCtx.createRadialGradient(pt.x, pt.y, 0, pt.x, pt.y, radius);
+      grad.addColorStop(0,   'rgba(0,0,0,1)');
+      grad.addColorStop(0.55,'rgba(0,0,0,0.9)');
+      grad.addColorStop(1,   'rgba(0,0,0,0)');
+
+      fogCtx.beginPath();
+      fogCtx.arc(pt.x, pt.y, radius, 0, Math.PI * 2);
+      fogCtx.fillStyle = grad;
+      fogCtx.fill();
+    } catch {}
+  });
+
+  fogCtx.globalCompositeOperation = 'source-over';
+  updateFogStats();
+}
+
+function updateFogStats() {
+  const el = document.getElementById('fog-stats');
+  if (!el) return;
+  const tileSet = new Set(
+    cards.map(c => `${Math.round(c.lat / 0.005)}_${Math.round(c.lon / 0.005)}`)
+  );
+  el.textContent = `🗺️ ${tileSet.size}개 구역 · ${cards.length}곳 탐색`;
 }
