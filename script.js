@@ -1,8 +1,10 @@
 'use strict';
 
 // ── 카카오 OAuth 설정 ─────────────────────────────────────────────────────────
-const KAKAO_REST_KEY     = 'c8e1aff96846e2c941a590a9c20b3621';
-const KAKAO_REDIRECT_URI = 'https://benkimkr.github.io/placelog';
+const KAKAO_REST_KEY      = 'c8e1aff96846e2c941a590a9c20b3621';
+const KAKAO_REDIRECT_URI  = 'https://benkimkr.github.io/placelog';
+// 클라이언트 시크릿: Kakao 보안 설정이 "사용 안 함"이면 빈 문자열로 둘 것
+const KAKAO_CLIENT_SECRET = 'R31TC8SsWiESFJpjIgn9wYnQjtwh6tuo';
 
 // ── Firebase 설정 ─────────────────────────────────────────────────────────────
 const firebaseConfig = {
@@ -162,7 +164,8 @@ async function handleKakaoCallback(code) {
       body:    'grant_type=authorization_code'
              + `&client_id=${KAKAO_REST_KEY}`
              + `&redirect_uri=${encodeURIComponent(KAKAO_REDIRECT_URI)}`
-             + `&code=${encodeURIComponent(code)}`,
+             + `&code=${encodeURIComponent(code)}`
+             + (KAKAO_CLIENT_SECRET ? `&client_secret=${KAKAO_CLIENT_SECRET}` : ''),
     });
 
     const token = await tokenRes.json();
